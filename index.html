@@ -1,3 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
 <head>
-	sdfkjhsdflkjhdskf
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ParSolGen (Parallel Solvers Generator) - Automated Parallel Program Generator for numerical simulations</title>
+  <style>
+	body {
+	  margin: 0;
+	  font-family: Arial, sans-serif;
+	  line-height: 1.6;
+	  background-color: #f9f9fb;
+	  color: #333;
+	}
+	header {
+	  background: #000000;
+	  color: #fff;
+	  padding: 1rem 2rem;
+	  position: sticky;
+	  top: 0;
+	  z-index: 1000;
+	}
+	nav {
+	  display: flex;
+	  justify-content: space-between;
+	  align-items: center;
+	}
+	nav .logo {
+	  font-size: 1.5rem;
+	  font-weight: bold;
+	}
+	nav ul {
+	  list-style: none;
+	  display: flex;
+	  gap: 1.5rem;
+	  margin: 0;
+	  padding: 0;
+	}
+	nav ul li a {
+	  color: #fff;
+	  text-decoration: none;
+	  transition: color 0.3s;
+	}
+	nav ul li a:hover {
+	  color: #5cc9f5;
+	}
+
+	section {
+	  padding: 4rem 2rem;
+	  max-width: 1000px;
+	  margin: auto;
+	}
+	.hero {
+	  text-align: center;
+	  padding: 6rem 2rem;
+	  background: linear-gradient(180deg, #000000, #21136E);
+	  color: #fff;
+	  border-radius: 0 0 1rem 1rem;
+	}
+	.hero h1 {
+	  font-size: 2.5rem;
+	  margin-bottom: 1rem;
+	}
+	.hero p {
+	  font-size: 1.2rem;
+	  max-width: 700px;
+	  margin: auto;
+	}
+	.btn {
+	  display: inline-block;
+	  margin-top: 2rem;
+	  padding: 0.8rem 1.5rem;
+	  font-size: 1rem;
+	  background: #5cc9f5;
+	  color: #fff;
+	  border: none;
+	  border-radius: 2rem;
+	  text-decoration: none;
+	  transition: background 0.3s;
+	}
+	.btn:hover {
+	  background: #3ea7d6;
+	}
+
+	.features {
+	  display: grid;
+	  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+	  gap: 2rem;
+	  margin-top: 2rem;
+	}
+	.feature {
+	  background: #fff;
+	  padding: 1.5rem;
+	  border-radius: 1rem;
+	  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+	}
+	.feature h3 {
+	  margin-top: 0;
+	}
+
+	footer {
+	  text-align: center;
+	  padding: 2rem;
+	  background: #1a1f36;
+	  color: #aaa;
+	  font-size: 0.9rem;
+	}
+  </style>
 </head>
+<body>
+  <header>
+	<nav>
+	  <div class="logo">ParSolGen</div>
+	  <ul>
+		<li><a href="#description">Description</a></li>
+		<li><a href="#download">Download</a></li>
+		<li><a href="#contacts">Contacts</a></li>
+	  </ul>
+	</nav>
+  </header>
+
+  <section class="hero">
+	<h1>ParSolGen</h1>
+	<p>
+	  Automated parallel program generator for distributed memory parallel computers.  
+	  Write your numerical algorithm in the ParSolGen language, and instantly generate optimized C++ parallel programs.
+	</p>
+	<a href="#download" class="btn">Get Started</a>
+  </section>
+
+  <section id="description">
+	<h2>What is ParSolGen?</h2>
+	<p>
+	  ParSolGen (Parallel Solvers Generator) simplifies high-performance computing by allowing scientists and engineers to write high-level descriptions 
+	  of numerical algorithms. It automatically generates efficient parallel C++ code, taking care of the complexities 
+	  of distributed memory, load balancing, and accelerator usage.
+	</p>
+
+	<div class="features">
+	  <div class="feature">
+		<h3>Automated Distributed Memory</h3>
+		<p>Seamless support for distributed memory systems without manual MPI programming.</p>
+	  </div>
+	  <div class="feature">
+		<h3>Load Balancing</h3>
+		<p>Automatic workload distribution across computing nodes to maximize efficiency.</p>
+	  </div>
+	  <div class="feature">
+		<h3>Accelerator Support</h3>
+		<p>Out-of-the-box Goopax support that allows employig accelerators in the computation.</p>
+	  </div>
+	</div>
+  </section>
+
+  <section id="download">
+	<h2>Download ParSolGen</h2>
+	<p>Beta release coming soon – stay tuned for our first public release!</p>
+	<a href="https://github.com/parsolgen/ParSolGenHome" class="btn">Get a free alpha-version on github!</a>
+  </section>
+
+  <section id="contacts">
+	<h2>Contact Us</h2>
+	<p>Have questions or want to collaborate? Reach out at:</p>
+	<p><strong>Email:</strong> bl0ckzer02@gmail.com</p>
+  </section>
+
+  <footer>
+	<p>&copy; 2025 ParSolGen. All rights reserved.</p>
+  </footer>
+</body>
+</html>
