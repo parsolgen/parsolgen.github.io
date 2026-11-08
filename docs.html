@@ -1,0 +1,965 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Documentation — ParSolGen &amp; PySol</title>
+  <meta name="description" content="Documentation for ParSolGen, the parallel solvers generator, and PySol, its Python front-end." />
+  <link rel="icon" type="image/png" href="logo.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="container">
+      <a class="logo" href="index.html"><img src="logo.png" alt="PSG — Parallel Solvers Generator" /></a>
+      <div class="topbar-links">
+        <a class="btn" href="https://github.com/parsolgen/ParSolGenHome">GitHub</a>
+        <a class="btn btn-primary" href="index.html#downloads">Download</a>
+      </div>
+    </div>
+  </header>
+
+  <nav class="mainnav" aria-label="Main">
+    <div class="container">
+      <button class="nav-toggle" type="button" aria-expanded="false">☰ Menu</button>
+      <ul>
+        <li><a href="index.html#features">Features</a></li>
+        <li><a href="index.html#products">Products</a></li>
+        <li><a href="index.html#downloads">Downloads</a></li>
+        <li><a href="docs.html" class="active">Documentation</a></li>
+        <li><a href="index.html#contacts">Contacts</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <div class="container docs-layout">
+    <aside class="docs-sidebar" aria-label="Documentation contents">
+      <h4>ParSolGen</h4>
+      <ul>
+        <li><a href="#psg-overview">Overview</a></li>
+        <li><a href="#psg-install">Installation</a></li>
+        <li><a href="#psg-structure">Program structure</a></li>
+        <li><a href="#psg-arrays">Blocked arrays &amp; versions</a></li>
+        <li><a href="#psg-kernels">Kernels (user code)</a></li>
+        <li><a href="#psg-ghost">Ghost-cell exchange</a></li>
+        <li><a href="#psg-more">More language features</a></li>
+        <li><a href="#psg-build">Build &amp; run</a></li>
+        <li><a href="#psg-example">Example: heat equation</a></li>
+      </ul>
+      <h4>PySol</h4>
+      <ul>
+        <li><a href="#py-overview">Overview</a></li>
+        <li><a href="#py-install">Installation &amp; config</a></li>
+        <li><a href="#py-quickstart">Quick start: heat equation</a></li>
+        <li><a href="#py-types">Types &amp; variables</a></li>
+        <li><a href="#py-kernels">Importing kernels</a></li>
+        <li><a href="#py-arrays">Arrays</a></li>
+        <li><a href="#py-ops">Array operations</a></li>
+        <li><a href="#py-control">Control flow</a></li>
+        <li><a href="#py-structs">Structs &amp; GrowingArray</a></li>
+        <li><a href="#py-sparse">Sparse matrices</a></li>
+        <li><a href="#py-api">API reference</a></li>
+        <li><a href="#py-examples">Examples</a></li>
+      </ul>
+    </aside>
+
+    <main class="docs-content">
+
+      <!-- ================================================================
+           ParSolGen
+           ================================================================ -->
+      <div class="product-head" id="parsolgen">
+        <h1>ParSolGen</h1>
+        <p>Write the algorithm as a sequential program over blocked arrays. ParSolGen produces the parallel MPI program.</p>
+      </div>
+
+      <section id="psg-overview">
+        <h2>Overview</h2>
+        <p>A ParSolGen program has two parts:</p>
+        <ul>
+          <li><strong>An algorithm description</strong> (<code>.sol</code> file): a small C-like program that says
+            <em>what</em> is computed on which pieces of data, and in which order. Data lives in distributed
+            <em>blocked arrays</em>.</li>
+          <li><strong>Kernels</strong> (<code>ucodes.h</code>): ordinary sequential C++ functions that do the actual
+            computation on one or a few blocks at a time.</li>
+        </ul>
+        <p>The <code>sgc</code> compiler analyses the description, derives the data dependencies between kernel
+          calls, and emits C++ (<code>out.cpp</code>). Compiled with <code>mpicxx</code> and linked to the
+          <code>PSRts</code> runtime library, it becomes an MPI program. The runtime distributes blocks across
+          nodes and threads, balances the load, moves data between nodes and to GPUs, and runs kernels as soon as
+          their inputs are ready.</p>
+        <div class="flow" aria-label="Build pipeline">
+          <div class="step"><b>Algorithm</b><span>heat.sol</span></div>
+          <div class="arrow">+</div>
+          <div class="step"><b>Kernels</b><span>ucodes.h</span></div>
+          <div class="arrow">→</div>
+          <div class="step"><b>sgc</b><span>out.cpp</span></div>
+          <div class="arrow">→</div>
+          <div class="step"><b>mpicxx + PSRts</b><span>a.out</span></div>
+          <div class="arrow">→</div>
+          <div class="step"><b>mpirun</b><span>cluster / GPUs</span></div>
+        </div>
+        <p>This guide uses the <a href="#psg-example">2D heat equation</a> solver as its running example.</p>
+      </section>
+
+      <section id="psg-install">
+        <h2>Installation</h2>
+        <p>ParSolGen runs on Linux. <a href="index.html#downloads">Download a release</a> and extract it:</p>
+        <div class="code-wrap"><pre><code data-lang="bash">tar xzf ps-release-v0.5-alpha-goopax.tar.gz
+ls ps-release-v0.5-alpha-goopax
+# bin/      sgc compiler
+# include/  headers needed to compile the generated programs
+# lib/      libPSRts runtime library</code></pre></div>
+        <p>The following dependencies must be installed beforehand:</p>
+        <div class="table-wrap"><table>
+          <tr><th>Required</th><th>Optional</th></tr>
+          <tr>
+            <td>MPI (mpich 4.2.3), Boost 1.79, libc++, libc, libm, OpenMP (libomp), pthreads, libudev, GKlib,
+              a BLAS/LAPACK implementation</td>
+            <td>Intel MKL (sparse CSR examples), Intel TBB, <a href="https://goopax.com/">Goopax</a> (GPU builds)</td>
+          </tr>
+        </table></div>
+      </section>
+
+      <section id="psg-structure">
+        <h2>Program structure</h2>
+        <p>A <code>.sol</code> file contains <strong>imports</strong> that declare the kernels, and one
+          <strong>exported subroutine</strong>, which is the program entry point.</p>
+        <div class="code-wrap"><span class="code-label">heat.sol</span><pre><code data-lang="sol">import print_iter(in int iter);
+import print_time();
+import time_start();
+import _calc_main(in double a, in double dt, in double dx, in double dy,
+                  in int prev_n1, in int prev_n2, in Array&lt;double&gt; prev[prev_n1][prev_n2],
+                  in int curr_n1, in int curr_n2, out Array&lt;double&gt; curr[curr_n1][curr_n2]);
+
+export sub main()
+{
+    int nb = 10;
+    int mb = 10;
+    double a = 100;
+    double dx = 0.01;
+    double dy = 0.01;
+    double dx2 = dx * dx;
+    double dy2 = dy * dy;
+    double dt = dx2 * dy2 / (2.0 * a * (dx2 + dy2));
+    // ...
+}</code></pre></div>
+        <ul>
+          <li><code>import name(...)</code> declares a kernel and its parameters. Each parameter is marked
+            <code>in</code> (read) or <code>out</code> (written). This is what the dependency analysis relies on,
+            so the direction must be correct.</li>
+          <li><code>export sub main()</code> defines the entry point. The body uses familiar C syntax:
+            <code>int</code> and <code>double</code> variables, arithmetic, <code>for</code> and <code>while</code>
+            loops, and <code>//</code> comments.</li>
+          <li>Scalar statements such as <code>double dt = …;</code> run on every process. Work on array blocks
+            happens only inside kernel calls.</li>
+        </ul>
+      </section>
+
+      <section id="psg-arrays">
+        <h2>Blocked arrays &amp; versions</h2>
+        <p>Distributed data is declared as a grid of blocks. The type in angle brackets gives the shape of a single
+          block; the brackets after the name give the number of blocks:</p>
+        <div class="code-wrap"><pre><code data-lang="sol">int nb = 10;           // blocks along dimension 0
+int mb = 10;           // blocks along dimension 1
+int block_n_ = 100;    // interior cells per block, dimension 0
+int block_m = 100;     // interior cells per block, dimension 1
+
+// 10 x 10 grid of blocks; every block holds (100+2) x (100+2) doubles
+// (the +2 is a one-cell ghost layer on each side)
+Array&lt;double[block_n_ + 2][block_m + 2]&gt; A[nb][mb];</code></pre></div>
+        <p>A block is addressed by its grid coordinates: <code>A[i][j]</code>. ParSolGen decides which node, and
+          which device, owns each block.</p>
+
+        <h3>Versions</h3>
+        <p>Each block can have many <em>versions</em>, written as <code>A{v}[i][j]</code>. A version is written
+          once and then only read. A new value of the same block goes into the next version. This
+          single-assignment rule is how ParSolGen finds parallelism: a kernel that reads <code>A{it}</code> and
+          writes <code>A{it + 1}</code> depends only on the kernels that produced the blocks it reads. Calls on
+          different blocks are independent and run in parallel.</p>
+        <div class="code-wrap"><pre><code data-lang="sol">// one explicit time step: read version it, write version it + 1
+_calc_main(a, dt, dx, dy,
+    %block_n(A, 0), %block_n(A, 1), A{it}[i][j],
+    %block_n(A, 0), %block_n(A, 1), A{it + 1}[i][j]);</code></pre></div>
+        <p><code>A[i][j]</code> without braces refers to version 0.</p>
+
+        <h3>Shape macros</h3>
+        <div class="table-wrap"><table>
+          <tr><th>Macro</th><th>Value</th></tr>
+          <tr><td><code>%block_n(A, d)</code></td><td>Size of one block of <code>A</code> along dimension <code>d</code> (including ghost cells, here 102)</td></tr>
+          <tr><td><code>%n_blocks(A, d)</code></td><td>Number of blocks of <code>A</code> along dimension <code>d</code> (here 10)</td></tr>
+        </table></div>
+        <div class="code-wrap"><pre><code data-lang="sol">int _Update_SRC_block_n1_1 = %block_n(A,  0)-2;   // interior size: 100
+int _Update_SRC_block_n2_1 = %block_n(A,  1)-2;
+int _Update_SRC_n1_blocks_1 = %n_blocks(A,  0);    // 10
+int _Update_SRC_n2_blocks_1 = %n_blocks(A,  1);</code></pre></div>
+      </section>
+
+      <section id="psg-kernels">
+        <h2>Kernels (user code)</h2>
+        <p>Kernels are plain C++ functions in <code>ucodes.h</code>, next to the <code>.sol</code> file. The
+          generated <code>out.cpp</code> includes it. Parameters map one to one, in order:</p>
+        <div class="table-wrap"><table>
+          <tr><th><code>.sol</code> parameter</th><th>C++ parameter</th></tr>
+          <tr><td><code>in int n</code></td><td><code>int n</code></td></tr>
+          <tr><td><code>in double a</code></td><td><code>double a</code></td></tr>
+          <tr><td><code>in Array&lt;double&gt; prev[n][m]</code></td><td><code>const double* prev</code>: one block, row-major, <code>n*m</code> values</td></tr>
+          <tr><td><code>out Array&lt;double&gt; curr[n][m]</code></td><td><code>double* curr</code></td></tr>
+        </table></div>
+        <p>A block's dimensions are passed as preceding <code>int</code> parameters, so the kernel knows its size.
+          Here is the heat-equation step: the import, and its implementation:</p>
+        <div class="code-wrap"><span class="code-label">heat.sol</span><pre><code data-lang="sol">import _calc_main(in double a, in double dt, in double dx, in double dy,
+    in int prev_n1, in int prev_n2, in Array&lt;double&gt; prev[prev_n1][prev_n2],
+    in int curr_n1, in int curr_n2, out Array&lt;double&gt; curr[curr_n1][curr_n2]);</code></pre></div>
+        <div class="code-wrap"><span class="code-label">ucodes.h</span><pre><code data-lang="cpp">void _calc_main(
+	double a, double dt, double dx, double dy,
+	int n, int m, const double* prev,
+	int in_n_unused, int in_m_unused, double* curr)
+{
+	const auto in_n = n - 2;   // interior size (block minus ghost layer)
+	const auto in_m = m - 2;
+	const auto dx2 = dx * dx;
+	const auto dy2 = dy * dy;
+
+	// copy the ghost frame unchanged
+	for (std::size_t i = 0; i &lt; m; ++i) {
+		curr[i] = prev[i];
+		curr[(n - 1) * m + i] = prev[(n - 1) * m + i];
+	}
+	for (std::size_t i = 0; i &lt; n; ++i) {
+		curr[i * m] = prev[i * m];
+		curr[i * m + m - 1] = prev[i * m + m - 1];
+	}
+	// 5-point stencil on the interior
+	for (int i = 1; i &lt;= in_n; i++) {
+		for (int j = 1; j &lt;= in_m; j++) {
+			int ind = i * m + j;
+			int ip = (i + 1) * m + j;
+			int im = (i - 1) * m + j;
+			int jp = i * m + j + 1;
+			int jm = i * m + j - 1;
+			curr[ind] = prev[ind] + a * dt *
+				((prev[ip] - 2.0 * prev[ind] + prev[im]) / dx2 +
+				 (prev[jp] - 2.0 * prev[ind] + prev[jm]) / dy2);
+		}
+	}
+}</code></pre></div>
+        <p>Kernels can also take scalars only, for example progress output and timing:</p>
+        <div class="code-wrap"><span class="code-label">ucodes.h</span><pre><code data-lang="cpp">void print_iter(int iter)
+{
+	if (iter % 100 == 0)
+	{
+		std::cout &lt;&lt; "IT: " &lt;&lt; iter &lt;&lt; "\n";
+	}
+}
+
+void time_start()
+{
+	total_exec_time = MPI_Wtime();
+}</code></pre></div>
+        <div class="note"><strong>Rule:</strong> kernels must only touch data passed to them. They must not keep
+          pointers to blocks between calls, and must not write to <code>in</code> parameters. The runtime may run
+          them on any node and thread.</div>
+      </section>
+
+      <section id="psg-ghost">
+        <h2>Ghost-cell exchange</h2>
+        <p>Stencil codes need neighbour values at block borders. Each block of the heat example has a one-cell
+          ghost frame. After every step, the borders are copied between neighbouring blocks in two phases, using
+          helpers from the runtime library (<code>_read_ghost_double</code> and <code>_write_ghost_double</code>,
+          declared in <code>CgGate/rts.h</code>; float and 3D variants also exist).</p>
+        <p><strong>1. Read edges.</strong> Each block packs its four interior edges (left, right, up, down) into a
+          small edge array:</p>
+        <div class="code-wrap"><pre><code data-lang="sol">int ghost_edge_len = block_n_ * 2 + block_m * 2;
+Array&lt;double[ghost_edge_len][1]&gt; ghost_edges[nb][mb];
+
+for (int i = 0; i &lt; nb; i++)
+    for (int j = 0; j &lt; mb; ++j)
+        _read_ghost_double(block_n_, block_m, ghost_edge_len,
+                           A{it+1}[i][j], ghost_edges{0}[i][j]);</code></pre></div>
+        <p><strong>2. Write ghosts.</strong> Each block's next version is built from its current version and the
+          edges of its left, right, upper and lower neighbours. For interior blocks:</p>
+        <div class="code-wrap"><pre><code data-lang="sol">for (int i = 1; i &lt; nb - 1; i++)
+{
+    for (int j = 1; j &lt; mb -1; j++)
+    {
+        _write_ghost_double(
+            _Update_SRC_block_n1_1,
+            _Update_SRC_block_n2_1,
+            ghost_edge_len,
+            ghost_edges[i][j-1],      // left neighbour
+            ghost_edges[i][j+1],      // right neighbour
+            ghost_edges[i - 1][j],    // upper neighbour
+            ghost_edges[i + 1][j],    // lower neighbour
+            A{it + 1}[i][j],
+            A{it + 2}[i][j]);
+    }
+}</code></pre></div>
+        <p>Corner and edge blocks have no neighbour on one or two sides. They pass their own edges in those
+          positions instead. The <a href="#psg-example">complete listing</a> covers all nine cases. One full
+          iteration therefore advances the version by two: <code>it</code> → <code>it + 1</code> (stencil) →
+          <code>it + 2</code> (ghost update).</p>
+        <div class="note"><strong>Tip:</strong> PySol generates this exchange for you with a single
+          <a href="#py-quickstart"><code>pysol_update_array</code></a> call.</div>
+      </section>
+
+      <section id="psg-more">
+        <h2>More language features</h2>
+        <p>The heat example uses only the core language. Other ParSolGen programs (for example the BiCG and CSR
+          examples on <a href="https://github.com/parsolgen/ParSolGenHome">GitHub</a>) also use:</p>
+        <div class="table-wrap"><table>
+          <tr><th>Construct</th><th>Meaning</th></tr>
+          <tr><td><code>SingleVersionArray&lt;…&gt; x[nb];</code></td><td>Array that keeps only its most recently written version per block</td></tr>
+          <tr><td><code>x{%latest}</code></td><td>The most recently written version of a block</td></tr>
+          <tr><td><code>if (!%zero(A[i][j])) { … }</code></td><td>Skip empty blocks of a sparse CSR matrix</td></tr>
+          <tr><td><code>Zr = {};</code></td><td>Reset an array</td></tr>
+          <tr><td><code>double beta = (Zr, Rl);</code></td><td>Dot product of two blocked vectors</td></tr>
+          <tr><td><code>x{1} = x + a_c * Pr;</code></td><td>Whole-vector arithmetic</td></tr>
+        </table></div>
+      </section>
+
+      <section id="psg-build">
+        <h2>Build &amp; run</h2>
+        <p><strong>1. Generate C++</strong> from the algorithm description. The output is <code>out.cpp</code> by
+          default; use <code>-o</code> to choose another name.</p>
+        <div class="code-wrap"><pre><code data-lang="bash">&lt;parsolgen&gt;/bin/sgc heat.sol</code></pre></div>
+        <p><strong>2. Compile</strong> with any MPI C++ compiler and link the runtime:</p>
+        <div class="code-wrap"><span class="code-label">CPU</span><pre><code data-lang="bash">mpicxx -std=c++17 -O3 out.cpp \
+    -I&lt;parsolgen&gt;/include -L&lt;parsolgen&gt;/lib \
+    -lPSRts -l&lt;blas_lapack&gt; -lGKlib -fopenmp</code></pre></div>
+        <div class="code-wrap"><span class="code-label">CPU + GPU (Goopax release)</span><pre><code data-lang="bash">mpicxx -std=c++17 -O3 out.cpp \
+    -DSG_USE_ACCEL=1 -DSG_USE_GOOPAX=1 -DPSTL_USE_PARALLEL_POLICIES=0 \
+    -I&lt;parsolgen&gt;/include -I&lt;goopax&gt;/include/goopax-6.0-I&lt;mkl&gt;/include \
+    -L&lt;parsolgen&gt;/lib -L&lt;goopax&gt;/lib64 -L&lt;mkl&gt;/lib/intel64 \
+    -lPSRts -lmkl_intel_lp64 -lmkl_sequential -lmkl_core -lGKlib -fopenmp -lgoopax -ltbb</code></pre></div>
+        <p>For GPU builds, <code>ucodes.h</code> can provide Goopax versions of kernels (for example
+          <code>calc_main_goopax</code>, which takes a <code>goopax::goopax_device</code> and
+          <code>goopax::buffer&lt;double&gt;</code> arguments). The runtime moves data between host and device.</p>
+        <p><strong>3. Run</strong> with <code>mpirun</code>. <code>OMP_NUM_THREADS</code> sets the number of worker
+          threads per process:</p>
+        <div class="code-wrap"><pre><code data-lang="bash">OMP_NUM_THREADS=16 mpirun -n 4 ./a.out</code></pre></div>
+        <p>The heat example prints <code>IT: …</code> every 100 iterations and the total time. It then writes each
+          block to a binary file <code>of_&lt;i&gt;_&lt;j&gt;</code> (two <code>int</code>s for the block size,
+          followed by the interior values) for post-processing.</p>
+      </section>
+
+      <section id="psg-example">
+        <h2>Example: heat equation</h2>
+        <p>The complete solver for the 2D heat equation
+          <code>∂u/∂t = a (∂²u/∂x² + ∂²u/∂y²)</code> on a 1000×1000 grid split into 10×10 blocks. The initial state
+          is a cold disc (1.0) in a warm area (65.0), and the program runs 5000 explicit time steps. The kernels are
+          the ones shown in <a href="#psg-kernels">Kernels</a>.</p>
+        <details class="listing" open>
+          <summary>heat.sol (complete listing)</summary>
+<pre><code data-lang="sol">import init_el(in int ii, in int jj, in int n, in int m, in int nb, in int mb, out Array&lt;double&gt; a[n][m]);
+import read_ghost(in int n, in int m, in int ghost_edge_len,
+	in Array&lt;double&gt; a[n][m], out Array&lt;double&gt; ghost_edge[ghost_edge_len][1]);
+import write_ghost(in int n,
+	in int m,
+	in int ghost_edge_len,
+	in Array&lt;double&gt; left[ghost_edge_len][1],
+	in Array&lt;double&gt; right[ghost_edge_len][1],
+	in Array&lt;double&gt; up[ghost_edge_len][1],
+	in Array&lt;double&gt; down[ghost_edge_len][1],
+	in Array&lt;double&gt; A[n][m],
+	out Array&lt;double&gt; B[n][m]);
+import print(in double value);
+import print_el(in int i, in int j, in int n, in int m, in Array&lt;double&gt; a[n][m]);
+import calc_main(
+	in int n,
+	in int m,
+	in double a,
+	in double dt,
+	in double dx,
+	in double dy,
+	in Array&lt;double&gt; A[n][m],
+	out Array&lt;double&gt; B[n][m]);
+import print_iter(in int iter);
+import print_time();
+import time_start();
+import _read_ghost_double(in int n, in int m, in int ghost_edge_len, in Array&lt;double&gt; a[n][m], out Array&lt;double&gt; ghost_edge[ghost_edge_len][1]);
+import _write_ghost_double(in int n, in int m, in int ghost_edge_len, in Array&lt;double&gt; left[ghost_edge_len][1], in Array&lt;double&gt; right[ghost_edge_len][1], in Array&lt;double&gt; up[ghost_edge_len][1], in Array&lt;double&gt; down[ghost_edge_len][1], in Array&lt;double&gt; A[n][m], out Array&lt;double&gt; B[n][m]);
+import _calc_main(in double a, in double dt, in double dx, in double dy, in int prev_n1, in int prev_n2, in Array&lt;double&gt; prev[prev_n1][prev_n2], in int curr_n1, in int curr_n2, out Array&lt;double&gt; curr[curr_n1][curr_n2]);
+import _init_el(in int ii, in int jj, in int n, in int m, in int A_n1, in int A_n2, out Array&lt;double&gt; A[A_n1][A_n2]);
+import _print_el(in int ii, in int jj, in int A_n1, in int A_n2, out Array&lt;double&gt; A[A_n1][A_n2]);
+
+export sub main()
+{
+	int nb = 10;
+	int mb = 10;
+	int block_n_ = 100;
+	int block_m = 100;
+	int ghost_edge_len = block_n_ * 2 + block_m * 2;
+	int it = 0;
+	double a = 100;
+	double dx = 0.01;
+	double dy = 0.01;
+    double dx2 = dx * dx;
+    double dy2 = dy * dy;
+    double dt = dx2 * dy2 / (2.0 * a * (dx2 + dy2));
+
+	Array&lt;double[block_n_ + 2][block_m + 2]&gt; A[nb][mb];
+	Array&lt;double[ghost_edge_len][1]&gt; ghost_edges[nb][mb];
+    int _Update_SRC_block_n1_1 = %block_n(A,  0)-2;
+    int _Update_SRC_block_n2_1 = %block_n(A,  1)-2;
+    int _Update_SRC_n1_blocks_1 = %n_blocks(A,  0);
+    int _Update_SRC_n2_blocks_1 = %n_blocks(A,  1);
+
+	for (int i = 0; i &lt; nb; i++)
+	{
+		for (int j = 0; j &lt; mb; ++j)
+		{
+			_init_el(i, j, nb, mb, %block_n(A, 0), %block_n(A, 1), A[i][j]);
+		}
+	}
+
+	time_start();
+
+	while (it &lt; 5000)
+	{
+		for (int i = 0; i &lt; nb; i++)
+		{
+			for (int j = 0; j &lt; mb; ++j)
+			{
+				_calc_main(a, dt, dx, dy, %block_n(A, 0), %block_n(A, 1), A{it}[i][j], %block_n(A, 0), %block_n(A, 1), A{it + 1}[i][j]);
+				_read_ghost_double(block_n_, block_m, ghost_edge_len, A{it+1}[i][j], ghost_edges{0}[i][j]);
+			}
+		}
+
+		_write_ghost_double(
+			_Update_SRC_block_n1_1,
+			_Update_SRC_block_n2_1,
+			ghost_edge_len,
+			ghost_edges[0][0],
+			ghost_edges[0][1],
+			ghost_edges[0][0],
+			ghost_edges[1][0],
+			A{it + 1}[0][0],
+			A{it + 2}[0][0]);
+
+		_write_ghost_double(
+			_Update_SRC_block_n1_1,
+			_Update_SRC_block_n2_1,
+			ghost_edge_len,
+			ghost_edges[0][mb-2],
+			ghost_edges[0][mb-1],
+			ghost_edges[0][mb-1],
+			ghost_edges[1][mb-1],
+			A{it + 1}[0][mb-1],
+			A{it + 2}[0][mb-1]);
+
+		_write_ghost_double(
+			_Update_SRC_block_n1_1,
+			_Update_SRC_block_n2_1,
+			ghost_edge_len,
+			ghost_edges[nb-1][0],
+			ghost_edges[nb-1][1],
+			ghost_edges[nb-2][0],
+			ghost_edges[nb-1][0],
+			A{it + 1}[nb-1][0],
+			A{it + 2}[nb-1][0]);
+
+		_write_ghost_double(
+			_Update_SRC_block_n1_1,
+			_Update_SRC_block_n2_1,
+			ghost_edge_len,
+			ghost_edges[nb-1][mb-2],
+			ghost_edges[nb-1][mb-1],
+			ghost_edges[nb-2][mb-1],
+			ghost_edges[nb-1][mb-1],
+			A{it + 1}[nb-1][mb-1],
+			A{it + 2}[nb-1][mb-1]);
+
+		// Left
+		for (int i = 1; i &lt; nb - 1; i++)
+		{
+			_write_ghost_double(
+				_Update_SRC_block_n1_1,
+				_Update_SRC_block_n2_1,
+				ghost_edge_len,
+				ghost_edges[i][0],
+				ghost_edges[i][1],
+				ghost_edges[i-1][0],
+				ghost_edges[i+1][0],
+				A{it + 1}[i][0],
+				A{it + 2}[i][0]);
+		}
+		// Right
+		for (int i = 1; i &lt; nb - 1; i++)
+		{
+			_write_ghost_double(
+				_Update_SRC_block_n1_1,
+				_Update_SRC_block_n2_1,
+				ghost_edge_len,
+				ghost_edges[i][mb-2],
+				ghost_edges[i][mb-1],
+				ghost_edges[i-1][mb-1],
+				ghost_edges[i+1][mb-1],
+				A{it + 1}[i][mb-1],
+				A{it + 2}[i][mb-1]);
+		}
+		// Up
+		for (int j = 1; j &lt; mb - 1; j++)
+		{
+			_write_ghost_double(
+				_Update_SRC_block_n1_1,
+				_Update_SRC_block_n2_1,
+				ghost_edge_len,
+				ghost_edges[0][j-1],
+				ghost_edges[0][j+1],
+				ghost_edges[0][j],
+				ghost_edges[1][j],
+				A{it + 1}[0][j],
+				A{it + 2}[0][j]);
+		}
+		// Down
+		for (int j = 1; j &lt; mb - 1; j++)
+		{
+			_write_ghost_double(
+				_Update_SRC_block_n1_1,
+				_Update_SRC_block_n2_1,
+				ghost_edge_len,
+				ghost_edges[nb-1][j-1],
+				ghost_edges[nb-1][j+1],
+				ghost_edges[nb-2][j],
+				ghost_edges[nb-1][j],
+				A{it + 1}[nb-1][j],
+				A{it + 2}[nb-1][j]);
+		}
+		// Center
+		for (int i = 1; i &lt; nb - 1; i++)
+		{
+			for (int j = 1; j &lt; mb -1; j++)
+			{
+				_write_ghost_double(
+					_Update_SRC_block_n1_1,
+					_Update_SRC_block_n2_1,
+					ghost_edge_len,
+					ghost_edges[i][j-1],
+					ghost_edges[i][j+1],
+					ghost_edges[i - 1][j],
+					ghost_edges[i + 1][j],
+					A{it + 1}[i][j],
+					A{it + 2}[i][j]);
+			}
+		}
+		print_iter(it);
+		it = it + 2;
+	}
+	print_time();
+
+	for (int i = 0; i &lt; nb; i++)
+	{
+		for (int j = 0; j &lt; mb; j++)
+		{
+			_print_el(i, j, %block_n(A, 0), %block_n(A, 1), A{it - 2}[i][j]);
+		}
+	}
+}</code></pre>
+        </details>
+      </section>
+
+      <div class="product-gap"></div>
+
+      <!-- ================================================================
+           PySol
+           ================================================================ -->
+      <div class="product-head pysol" id="pysol">
+        <h1>PySol</h1>
+        <p>Write ParSolGen algorithms in Python. Compile and run them from the same script.</p>
+      </div>
+
+      <section id="py-overview">
+        <h2>Overview</h2>
+        <p>PySol is a Python front-end for ParSolGen. You write the algorithm as a Python function and decorate it
+          with <code>@pysol</code>. The function is never executed as Python. Instead, at import time PySol reads
+          its source, checks that it uses only supported constructs, and generates an equivalent
+          <code>.sol</code> file. <code>pysol_compile</code> then runs <code>sgc</code> and the C++ compiler to
+          build a shared library, and <code>pysol_run</code> loads it and calls the function.</p>
+        <div class="flow" aria-label="PySol pipeline">
+          <div class="step"><b>@pysol</b><span>solver.py</span></div>
+          <div class="arrow">→</div>
+          <div class="step"><b>generated</b><span>solver.sol</span></div>
+          <div class="arrow">→</div>
+          <div class="step"><b>pysol_compile</b><span>solver.so</span></div>
+          <div class="arrow">→</div>
+          <div class="step"><b>pysol_run</b><span>parallel run</span></div>
+        </div>
+        <p>Kernels are still written in C++ in <code>ucodes.h</code>, exactly as in
+          <a href="#psg-kernels">ParSolGen</a>.</p>
+      </section>
+
+      <section id="py-install">
+        <h2>Installation &amp; config</h2>
+        <p>PySol requires Python 3.8 or newer and an installed <a href="#psg-install">ParSolGen</a>. Install it
+          from the source directory:</p>
+        <div class="code-wrap"><pre><code data-lang="bash">cd pysol
+pip install .            # or: pip install -e ".[dev]" for development (adds pytest)</code></pre></div>
+        <p>PySol reads the compiler location and options from a JSON config file, normally
+          <code>config.json</code> next to your script:</p>
+        <div class="code-wrap"><span class="code-label">config.json</span><pre><code data-lang="bash">{
+    "sgc": "/opt/parsolgen/bin/sgc",
+    "compiler": "mpicxx",
+    "compile_options": "-std=c++23 -DPSTL_USE_PARALLEL_POLICIES=0 -I/opt/parsolgen/include -L/opt/parsolgen/lib -lPSRts -lGKlib -fopenmp"
+}</code></pre></div>
+        <div class="table-wrap"><table>
+          <tr><th>Key</th><th>Required</th><th>Meaning</th></tr>
+          <tr><td><code>sgc</code></td><td>yes</td><td>Path to the ParSolGen compiler</td></tr>
+          <tr><td><code>compiler</code></td><td>yes</td><td>C++ compiler used to build the shared library (normally <code>mpicxx</code>)</td></tr>
+          <tr><td><code>compile_options</code></td><td>no</td><td>Extra flags, as a single string or a list of strings</td></tr>
+        </table></div>
+      </section>
+
+      <section id="py-quickstart">
+        <h2>Quick start: heat equation</h2>
+        <p>This is the <a href="#psg-example">ParSolGen heat solver</a> written with PySol. Compare its length with
+          <code>heat.sol</code>: the whole ghost-cell exchange becomes one call to
+          <code>pysol_update_array</code>.</p>
+        <div class="code-wrap"><span class="code-label">heat.py</span><pre><code data-lang="python">from pysol import (Array, KernelArgument, Type, import_kernel, load_config,
+                   pysol, pysol_compile, pysol_run, pysol_update_array)
+
+
+@pysol
+def solver():
+    init_el_k = import_kernel("init_el",
+                              [KernelArgument("ii", True, Type.Int),
+                               KernelArgument("jj", True, Type.Int),
+                               KernelArgument("n", True, Type.Int),
+                               KernelArgument("m", True, Type.Int),
+                               KernelArgument("A", False, Type.Double, 2)])
+    print_el_k = import_kernel("print_el",
+                               [KernelArgument("ii", True, Type.Int),
+                               KernelArgument("jj", True, Type.Int),
+                               KernelArgument("A", False, Type.Double, 2)])
+    calc_main_k = import_kernel("calc_main",
+                                [KernelArgument("a", True, Type.Double),
+                                 KernelArgument("dt", True, Type.Double),
+                                 KernelArgument("dx", True, Type.Double),
+                                 KernelArgument("dy", True, Type.Double),
+                                 KernelArgument("prev", True, Type.Double, 2),
+                                 KernelArgument("curr", False, Type.Double, 2)])
+    print_it_k = import_kernel("print_iter", [KernelArgument("it", True, Type.Int)])
+
+    nb : Type.Int = 10
+    mb : Type.Int = 10
+    block_n_ : Type.Int = 100
+    block_m_ : Type.Int = 100
+
+    a : Type.Double = 100
+    dx : Type.Double = 0.01
+    dy : Type.Double = 0.01
+    dx2 : Type.Double = dx * dx
+    dy2 : Type.Double = dy * dy
+    dt : Type.Double = dx2 * dy2 / (2.0 * a * (dx2 + dy2))
+
+    A = Array(2, 2, [nb, nb], [block_n_ + 2, block_m_ + 2], Type.Double)
+    for i in range(nb):
+        for j in range(mb):
+            init_el_k(i, j, nb, mb, A[i][j])
+
+    it : Type.Int = 0
+    while it &lt; 10000:
+        print_it_k(it)
+        for i in range(nb):
+            for j in range(mb):
+                calc_main_k(a, dt, dx, dy, A[it, i][j], A[it + 1, i][j])
+        pysol_update_array(A, it + 1, A, it + 2)
+        it = it + 2
+    for i in range(nb):
+        for j in range(mb):
+            print_el_k(i, j, A[it, i][j])
+
+
+if __name__ == "__main__":
+    load_config("config.json")
+    pysol_compile("solver")
+    pysol_run("solver")</code></pre></div>
+        <p>Run it with <code>python3 heat.py</code>. Importing the module writes <code>solver.sol</code>;
+          <code>pysol_compile</code> produces <code>solver.cpp</code> and <code>solver.so</code> next to it. The
+          generated description starts like this:</p>
+        <div class="code-wrap"><span class="code-label">solver.sol (generated)</span><pre><code data-lang="sol">export sub solver()
+{
+    int nb = 10;
+    int mb = 10;
+    int block_n_ = 100;
+    int block_m_ = 100;
+    double a = 100;
+    ...
+    Array&lt;double[block_n_ + 2][block_m_ + 2]&gt; A[nb][nb];
+    ...
+    int it = 0;
+    while (it &lt; 10000) {
+        print_iter(it);
+        for (int i = 0; i &lt; nb; i++) {
+            for (int j = 0; j &lt; mb; j++) {
+                calc_main(a, dt, dx, dy, %block_n(A, 0), %block_n(A, 1), A{it}[i][j],
+                          %block_n(A, 0), %block_n(A, 1), A{it + 1}[i][j]);
+            }
+        }
+        // ... generated _read_ghost_double / _write_ghost_double exchange ...</code></pre></div>
+      </section>
+
+      <section id="py-types">
+        <h2>Types &amp; variables</h2>
+        <p>Every scalar variable needs a PySol type annotation the first time it is assigned:</p>
+        <div class="code-wrap"><pre><code data-lang="python">n  : Type.Int    = 10
+vb : Type.Float  = n + 1
+dt : Type.Double = dx2 * dy2 / (2.0 * a * (dx2 + dy2))
+it = it + 2                  # later assignments need no annotation</code></pre></div>
+        <div class="table-wrap"><table>
+          <tr><th>PySol type</th><th><code>.sol</code> / C++ type</th></tr>
+          <tr><td><code>Type.Int</code></td><td><code>int</code></td></tr>
+          <tr><td><code>Type.Float</code></td><td><code>float</code></td></tr>
+          <tr><td><code>Type.Double</code></td><td><code>double</code></td></tr>
+          <tr><td><code>Type.Bool</code>, <code>Type.String</code></td><td>scalar kernel arguments</td></tr>
+          <tr><td><code>Type.CSRBlock(Type.Double)</code></td><td>one block of a <code>CSRMatrix</code></td></tr>
+        </table></div>
+        <div class="note warn"><strong>Note:</strong> the decorator analyses only the function's own source. Values
+          such as block counts must be literals or variables defined <em>inside</em> the decorated function.
+          Module-level constants are not visible to it.</div>
+      </section>
+
+      <section id="py-kernels">
+        <h2>Importing kernels</h2>
+        <p><code>import_kernel(name, args)</code> declares a C++ kernel from <code>ucodes.h</code> and returns a
+          callable to use inside the <code>@pysol</code> function. Each argument is described by
+          <code>KernelArgument(name, is_input, type, n_dims=0)</code>:</p>
+        <ul>
+          <li><code>is_input</code>: <code>True</code> for an input (<code>in</code>), <code>False</code> for an
+            output (<code>out</code>).</li>
+          <li><code>n_dims</code>: <code>0</code> for a scalar, <em>N</em> for an <em>N</em>-dimensional array
+            block.</li>
+        </ul>
+        <div class="code-wrap"><pre><code data-lang="python">init_el_k = import_kernel("init_el",
+                          [KernelArgument("ii", True, Type.Int),
+                           KernelArgument("jj", True, Type.Int),
+                           KernelArgument("n", True, Type.Int),
+                           KernelArgument("m", True, Type.Int),
+                           KernelArgument("A", False, Type.Double, 2)])   # 2D output block
+hello_world_k = import_kernel("hello_world_k", [])                        # no arguments</code></pre></div>
+        <p>In C++, each array argument becomes its block dimensions (<code>int</code>s) followed by a pointer, the
+          same as in <a href="#psg-kernels">ParSolGen</a>:</p>
+        <div class="code-wrap"><span class="code-label">ucodes.h</span><pre><code data-lang="cpp">//            ii      jj      n=nb    m=mb    A: dims then data
+void init_el(int ii, int jj, int nb, int mb, int n, int m, double* a);
+
+void calc_main(double a, double dt, double dx, double dy,
+               int n, int m, const double* prev,       // input block
+               int in_n_unused, int in_m_unused, double* curr);   // output block
+
+void hello_world_k()
+{
+    int rank = 0;
+    MPI_Comm_rank(MPI_COMM_WORLD, &amp;rank);
+    std::cout &lt;&lt; "Hello world from pysol from " &lt;&lt; rank &lt;&lt; "!\n";
+}</code></pre></div>
+        <p>Calling a function that was not imported with <code>import_kernel</code> raises
+          <code>NotImportedKernel</code>.</p>
+      </section>
+
+      <section id="py-arrays">
+        <h2>Arrays</h2>
+        <p><code>Array(n_dims, n_block_dims, array_size, block_size, type, is_single_version=False)</code> declares
+          a blocked, versioned array: a grid of <code>array_size</code> blocks, each of shape
+          <code>block_size</code>.</p>
+        <div class="code-wrap"><pre><code data-lang="python"># 1D: 10 blocks of 20 floats
+A = Array(1, 1, [n], [20], Type.Float)
+
+# 2D: 10x10 blocks of 102x102 doubles (100x100 + ghost layer)
+A = Array(2, 2, [nb, mb], [block_n_ + 2, block_m_ + 2], Type.Double)
+
+# 3D: 10x10x10 blocks of 10x10x10 doubles
+A = Array(3, 3, [nb, mb, lb], [block_n_, block_m_, block_l_], Type.Double)
+
+# keep only the latest version of each block (SingleVersionArray in .sol)
+x = Array(1, 1, [nb], [blockn], Type.Double, True)</code></pre></div>
+        <h3>Indexing and versions</h3>
+        <p>The version comes first inside the first subscript; block coordinates follow:</p>
+        <div class="table-wrap"><table>
+          <tr><th>PySol</th><th>Generated <code>.sol</code></th><th>Meaning</th></tr>
+          <tr><td><code>A[i][j]</code></td><td><code>A[i][j]</code></td><td>block (i, j), version 0</td></tr>
+          <tr><td><code>A[it, i][j]</code></td><td><code>A{it}[i][j]</code></td><td>block (i, j), version <code>it</code></td></tr>
+          <tr><td><code>A[it + 1, i][j][k]</code></td><td><code>A{it + 1}[i][j][k]</code></td><td>3D block, version <code>it + 1</code></td></tr>
+          <tr><td><code>Zr[LATEST_VERSION, i]</code></td><td><code>Zr{%latest}[i]</code></td><td>most recently written version</td></tr>
+          <tr><td><code>x[it,]</code></td><td><code>x{it}</code></td><td>whole vector at version <code>it</code> (note the trailing comma)</td></tr>
+        </table></div>
+      </section>
+
+      <section id="py-ops">
+        <h2>Array operations</h2>
+        <h3>Halo (ghost-cell) exchange</h3>
+        <p><code>pysol_update_array(src, src_version, dst, dst_version)</code> fills the ghost layer of every block
+          of <code>dst_version</code> from the neighbouring blocks of <code>src_version</code>. Blocks must include
+          the one-cell ghost layer (<code>block + 2</code>). It works for 2D and 3D arrays.</p>
+        <div class="code-wrap"><pre><code data-lang="python">it : Type.Int = 0
+while it &lt; 100:
+    for i in range(nb):
+        for j in range(mb):
+            modify_k(i, j, A[it, i][j], A[it + 1, i][j])
+    pysol_update_array(A, it + 1, A, it + 2)
+    it = it + 2</code></pre></div>
+        <p><code>pysol_update_array_3d_26_full_sum</code> is a 3D variant for particle-in-cell codes. Blocks overlap
+          their 26 neighbours by a two-cell slab, and the overlapping contributions are <em>summed</em> rather than
+          copied.</p>
+
+        <h3>Reductions</h3>
+        <div class="code-wrap"><pre><code data-lang="python">sum_value : Type.Double = sum(A)
+max_value : Type.Double = max(A)
+min_value : Type.Double = min(A)</code></pre></div>
+
+        <h3>Vector arithmetic</h3>
+        <p>Whole blocked vectors can be combined in a single expression. No per-block loop is needed.
+          <code>@</code> is the dot product:</p>
+        <div class="code-wrap"><pre><code data-lang="python">C = A + B                                    # element-wise sum of all blocks
+beta : Type.Double = Zr[0,] @ Rl[0,]         # dot product -&gt; (Zr, Rl)
+x[1,] = x[0,] + a_c * Pr[0,]                 # axpy
+reset(Zr)                                    # clear an array -&gt; Zr = {};</code></pre></div>
+      </section>
+
+      <section id="py-control">
+        <h2>Control flow</h2>
+        <div class="table-wrap"><table>
+          <tr><th>Construct</th><th>Supported form</th></tr>
+          <tr><td><code>for</code></td><td><code>for v in range(...)</code> only. Other loops raise <code>NotSupportedLoop</code>.</td></tr>
+          <tr><td><code>while</code></td><td><code>while it &lt; 10000:</code></td></tr>
+          <tr><td><code>if</code></td><td>Comparisons and calls whose arguments are plain variables, plus
+            <code>is_zero(A[i][j])</code> / <code>not is_zero(...)</code> for sparse blocks. Other conditions raise
+            <code>NotSupportedIfStatement</code>.</td></tr>
+        </table></div>
+      </section>
+
+      <section id="py-structs">
+        <h2>Structs &amp; GrowingArray</h2>
+        <p><code>@pysol_struct</code> declares a record type, used like <code>@dataclass</code>. Fields must be
+          <code>Type.Int</code>, <code>Type.Float</code> or <code>Type.Double</code>.
+          <code>GrowingArray(n_dims, array_size, type)</code> is a versioned array whose cells hold single values,
+          including structs. It suits variable-size data such as particle mailboxes.</p>
+        <div class="code-wrap"><pre><code data-lang="python">@pysol_struct
+class Sample:
+    a: Type.Int
+    b: Type.Float
+    c: Type.Double
+
+
+@pysol
+def growing_array_struct_test():
+    init_k = import_kernel("init_struct_cell3d",
+                            [KernelArgument("ii", True, Type.Int),
+                             KernelArgument("jj", True, Type.Int),
+                             KernelArgument("kk", True, Type.Int),
+                             KernelArgument("s", False, Sample)])
+
+    nb : Type.Int = 4
+    mb : Type.Int = 4
+    lb : Type.Int = 4
+
+    A = GrowingArray(3, [nb, mb, lb], Sample)
+
+    for i in range(nb):
+        for j in range(mb):
+            for k in range(lb):
+                init_k(i, j, k, A[i][j][k])</code></pre></div>
+      </section>
+
+      <section id="py-sparse">
+        <h2>Sparse matrices</h2>
+        <p><code>CSRMatrix(size, n_blocks, nnz, ia, ja, a, type)</code> wraps a CSR matrix split into a 2D grid of
+          CSR sub-blocks. Kernels receive single blocks as <code>Type.CSRBlock(Type.Double)</code>, and empty blocks
+          can be skipped with <code>is_zero</code>. From the BiCG example:</p>
+        <div class="code-wrap"><pre><code data-lang="python">csr_mv_k = import_kernel("csr_mv",
+                         [KernelArgument("nb", True, Type.Int),
+                          KernelArgument("blockn", True, Type.Int),
+                          KernelArgument("block", True, Type.CSRBlock(Type.Double)),
+                          KernelArgument("x", True, Type.Double, 1),
+                          KernelArgument("ysrc", True, Type.Double, 1),
+                          KernelArgument("ydst", False, Type.Double, 1)])
+
+for i in range(nb):
+    v = 0
+    for j in range(nb):
+        if not is_zero(A[i][j]):
+            csr_mv_k(nb, blockn, A[i][j], Pr[0, j], Zr[v, i], Zr[v + 1, i])
+            v = v + 1</code></pre></div>
+      </section>
+
+      <section id="py-api">
+        <h2>API reference</h2>
+        <div class="table-wrap"><table>
+          <tr><th>Function</th><th>Description</th></tr>
+          <tr><td><code>@pysol</code></td><td>Validates the function and writes <code>&lt;name&gt;.sol</code> next to the source file.</td></tr>
+          <tr><td><code>@pysol_struct</code></td><td>Declares a struct type for <code>GrowingArray</code> elements and kernel arguments.</td></tr>
+          <tr><td><code>load_config(path)</code></td><td>Loads the JSON config (<code>sgc</code>, <code>compiler</code>, <code>compile_options</code>).</td></tr>
+          <tr><td><code>get_config()</code></td><td>Returns the loaded config dictionary.</td></tr>
+          <tr><td><code>pysol_compile(name)</code></td><td>Runs <code>sgc</code> to produce <code>&lt;name&gt;.cpp</code>, then the compiler to produce <code>&lt;name&gt;.so</code>. Returns the two <code>CompletedProcess</code> results. Raises <code>SolCompileError</code> on failure.</td></tr>
+          <tr><td><code>pysol_run(name)</code></td><td>Loads <code>&lt;name&gt;.so</code>, initializes the runtime and calls the function.</td></tr>
+          <tr><td><code>import_kernel(name, args)</code></td><td>Declares a C++ kernel. See <a href="#py-kernels">Importing kernels</a>.</td></tr>
+          <tr><td><code>pysol_update_array(src, sv, dst, dv)</code></td><td>Ghost-cell exchange between neighbouring blocks.</td></tr>
+          <tr><td><code>pysol_update_array_3d_26_full_sum(...)</code></td><td>Additive 26-neighbour exchange for 3D arrays.</td></tr>
+          <tr><td><code>reset(A)</code>, <code>is_zero(block)</code></td><td>Clear an array; test whether a CSR block is empty.</td></tr>
+        </table></div>
+        <h3>Errors</h3>
+        <div class="table-wrap"><table>
+          <tr><th>Exception</th><th>Raised when</th></tr>
+          <tr><td><code>NotSupportedLoop</code>, <code>NotSupportedIfStatement</code></td><td>The decorated function uses an unsupported loop or condition</td></tr>
+          <tr><td><code>UnsupportedVariableType</code></td><td>A variable has no PySol type annotation</td></tr>
+          <tr><td><code>NotImportedKernel</code>, <code>UnsupportedCallError</code></td><td>A call targets an unknown function or has mismatched array dimensions</td></tr>
+          <tr><td><code>ArrayOperationError</code></td><td>Two array operands are incompatible</td></tr>
+          <tr><td><code>SolCompileError</code></td><td>The C++ compiler failed</td></tr>
+          <tr><td><code>SolLibraryNotFoundError</code>, <code>SolFunctionNotFoundError</code>, <code>SolInitError</code></td><td>The shared library or its symbol is missing, or runtime initialization failed</td></tr>
+        </table></div>
+      </section>
+
+      <section id="py-examples">
+        <h2>Examples</h2>
+        <p>The PySol source tree ships with these examples in <code>examples/</code>:</p>
+        <div class="table-wrap"><table>
+          <tr><th>Directory</th><th>Contents</th></tr>
+          <tr><td><code>simple/</code></td><td>Hello world, the heat solver, 2D/3D halo-exchange tests, reductions, structs with <code>GrowingArray</code></td></tr>
+          <tr><td><code>bicg/</code></td><td>BiCG iterative solver on a blocked CSR matrix (<code>CSRMatrix</code>, <code>is_zero</code>, <code>@</code>)</td></tr>
+          <tr><td><code>lattice-gas/</code></td><td>D2Q9 lattice-Boltzmann lid-driven cavity on a 3×3 block grid, with VTK output and a live visualizer</td></tr>
+          <tr><td><code>pic3d/</code>, <code>pic3d_v2/</code></td><td>3D particle-in-cell plasma simulation (particles migrate between blocks through <code>GrowingArray</code> mailboxes)</td></tr>
+        </table></div>
+      </section>
+
+    </main>
+  </div>
+
+  <footer class="footer">
+    <div class="container">
+      <div>
+        <h4>ParSolGen</h4>
+        <ul>
+          <li><a href="index.html#features">Features</a></li>
+          <li><a href="index.html#products">Products</a></li>
+          <li><a href="index.html#performance">Performance</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Downloads</h4>
+        <ul>
+          <li><a href="index.html#downloads">Latest releases</a></li>
+          <li><a href="https://github.com/parsolgen/ParSolGenHome/releases">All releases</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Documentation</h4>
+        <ul>
+          <li><a href="#psg-overview">ParSolGen guide</a></li>
+          <li><a href="#py-overview">PySol guide</a></li>
+          <li><a href="#psg-example">Heat equation example</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Contacts</h4>
+        <ul>
+          <li><a href="mailto:bl0ckzer02@gmail.com">Email</a></li>
+          <li><a href="https://github.com/parsolgen/ParSolGenHome">GitHub</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="copy">© 2025–2026 Nikolai Beliaev. All rights reserved.</div>
+  </footer>
+
+  <script src="main.js"></script>
+</body>
+</html>
