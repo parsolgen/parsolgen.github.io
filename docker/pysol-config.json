@@ -1,0 +1,5 @@
+{
+    "sgc": "/opt/parsolgen/bin/sgc",
+    "compiler": "mpicxx",
+    "compile_options": "-std=c++23 -O3 -ftemplate-depth=8000 -fopenmp -I/opt/parsolgen/include -L/opt/parsolgen/lib -Wl,-rpath,/opt/parsolgen/lib -lPSRts -L/opt/gklib/lib -lGKlib"
+}

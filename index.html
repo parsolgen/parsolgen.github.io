@@ -83,7 +83,7 @@ pysol_run("solver")</code></pre>
             algorithm in plain Python.</p>
           <div class="actions">
             <a class="btn btn-primary" href="docs.html">Get started</a>
-            <a class="btn" href="#downloads">Download a demo</a>
+            <a class="btn" href="#try">Try it in Docker</a>
           </div>
         </div>
       </div>
@@ -214,13 +214,63 @@ pysol_run("solver")</code></pre>
       </div>
     </section>
 
+    <!-- Docker sandbox offer -->
+    <section class="section" id="try">
+      <div class="container">
+        <div class="offer">
+          <div class="offer-pitch">
+            <span class="offer-ribbon">Try it now · No installation</span>
+            <h2>ParSolGen + PySol in one Docker container</h2>
+            <p>Want to play with ParSolGen and PySol before setting them up on a cluster? Our ready-made
+              Docker sandbox builds the whole toolchain for you, so you can write, compile and run parallel
+              programs on a single machine right away. The only thing you need installed is Docker.</p>
+            <ul class="offer-list">
+              <li>ParSolGen <strong>v0.5-alpha</strong> (CPU release) and PySol, ready to use</li>
+              <li>GCC 15.2.0, Python 3.10.12, MPICH 5.0.0, Boost 1.90.0 and GKlib preinstalled</li>
+              <li>A <code>config.json</code> already in place for every PySol example</li>
+              <li>Tested while it builds: the image is only created if the PySol example tests pass</li>
+            </ul>
+            <div class="actions">
+              <a class="btn btn-accent" href="docker/Dockerfile" download>Download Dockerfile</a>
+              <a class="btn" href="docker/pysol-config.json" download>pysol-config.json</a>
+            </div>
+            <p class="offer-fine">Intended for single-node experiments. The first build compiles GCC from source and
+              takes a while; the resulting image is about 1.3&nbsp;GB. For clusters and GPUs use the
+              <a href="#downloads">release archives</a>.</p>
+          </div>
+          <ol class="offer-steps">
+            <li>
+              <h3>Get the two files</h3>
+              <div class="code-wrap"><pre><code data-lang="bash">mkdir parsolgen-sandbox &amp;&amp; cd parsolgen-sandbox
+URL=https://parsolgen.github.io/docker
+curl -fsSLO $URL/Dockerfile
+curl -fsSLO $URL/pysol-config.json</code></pre></div>
+            </li>
+            <li>
+              <h3>Build the image</h3>
+              <div class="code-wrap"><pre><code data-lang="bash">docker build -t parsolgen:0.5-alpha .
+# more parallel make jobs: --build-arg JOBS=16</code></pre></div>
+            </li>
+            <li>
+              <h3>Start it and play</h3>
+              <div class="code-wrap"><pre><code data-lang="bash">docker run --rm -it parsolgen:0.5-alpha
+# inside the container (/opt/pysol/examples/simple):
+python3 run_tests.py      # All 6/6 test(s) passed
+ls ../                    # more examples to explore</code></pre></div>
+            </li>
+          </ol>
+        </div>
+      </div>
+    </section>
+
     <!-- Downloads -->
     <section class="section" id="downloads">
       <div class="container">
         <h2>Downloads</h2>
         <p class="section-lead">Demo releases run on Linux. Extract the archive: it contains the <code>sgc</code>
           compiler (<code>bin/</code>), headers (<code>include/</code>) and the runtime library
-          (<code>lib/</code>). See <a href="docs.html#psg-install">installation</a> for the dependencies.</p>
+          (<code>lib/</code>). See <a href="docs.html#psg-install">installation</a> for the dependencies,
+          or skip them entirely with the <a href="#try">Docker sandbox</a>.</p>
         <div class="table-wrap">
           <table class="dl-table">
             <thead>
@@ -231,13 +281,13 @@ pysol_run("solver")</code></pre>
                 <td><strong>ParSolGen v0.5-alpha (Goopax)</strong> <span class="badge">Latest</span></td>
                 <td>CPU + GPU supercomputers</td>
                 <td>Accelerator offload through Goopax 6</td>
-                <td><a href="https://github.com/parsolgen/ParSolGenHome/raw/master/ps-release-v0.5-alpha-goopax.tar.gz">ps-release-v0.5-alpha-goopax.tar.gz</a></td>
+                <td><a href="https://github.com/parsolgen/ParSolGenHome/releases/download/v0.5-alpha/ps-release-v0.5-alpha-goopax.tar.gz">ps-release-v0.5-alpha-goopax.tar.gz</a></td>
               </tr>
               <tr>
                 <td><strong>ParSolGen v0.5-alpha</strong> <span class="badge">Latest</span></td>
                 <td>CPU-only clusters</td>
                 <td>MPI + OpenMP</td>
-                <td><a href="https://github.com/parsolgen/ParSolGenHome/raw/master/ps-release-v0.5-alpha.tar.gz">ps-release-v0.5-alpha.tar.gz</a></td>
+                <td><a href="https://github.com/parsolgen/ParSolGenHome/releases/download/v0.5-alpha/ps-release-v0.5-alpha.tar.gz">ps-release-v0.5-alpha.tar.gz</a></td>
               </tr>
               <tr>
                 <td><strong>ParSolGen v0.4-alpha (Goopax)</strong></td>

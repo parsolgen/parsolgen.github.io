@@ -244,6 +244,73 @@ code, pre { font-family: var(--mono); font-size: 0.88rem; }
 .card li { margin: 0.25em 0; }
 .card .actions { margin-top: auto; display: flex; gap: 10px; flex-wrap: wrap; }
 
+/* Docker sandbox offer */
+.offer {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
+  gap: 36px;
+  padding: 34px 36px;
+  border: 2px solid var(--accent);
+  border-radius: 12px;
+  background:
+    radial-gradient(circle at 100% 0, rgba(240, 168, 48, 0.16), transparent 45%),
+    linear-gradient(135deg, #fff 0%, var(--bg-band) 100%);
+  box-shadow: 0 10px 30px rgba(42, 78, 199, 0.12);
+}
+.offer h2 { margin-top: 0.5em; }
+.offer-ribbon {
+  display: inline-block;
+  padding: 0.25em 0.9em;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--navy);
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.offer-list { list-style: none; padding: 0; margin: 1em 0 1.4em; }
+.offer-list li { position: relative; padding-left: 1.7em; margin: 0.4em 0; }
+.offer-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.3em;
+  width: 1.1em; height: 1.1em;
+  border-radius: 50%;
+  background: var(--blue);
+}
+.offer-list li::after {
+  content: "";
+  position: absolute;
+  left: 0.39em;
+  top: 0.48em;
+  width: 0.3em; height: 0.55em;
+  border: solid #fff;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.offer .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.offer-fine { margin: 1.2em 0 0; font-size: 0.85rem; color: var(--text-muted); }
+.offer-steps { list-style: none; counter-reset: step; padding: 0; margin: 0; }
+.offer-steps li { counter-increment: step; position: relative; padding-left: 42px; margin-bottom: 16px; }
+.offer-steps li:last-child { margin-bottom: 0; }
+.offer-steps li::before {
+  content: counter(step);
+  position: absolute;
+  left: 0; top: 0;
+  width: 30px; height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--navy);
+  color: #fff;
+  font-weight: 700;
+}
+.offer-steps h3 { margin: 0.2em 0 0.4em; font-size: 1.05rem; }
+.offer-steps .code-wrap { margin: 0; }
+.offer-steps pre { background: #fff; }
+
 /* Downloads table */
 .dl-table { width: 100%; border-collapse: collapse; background: #fff; border: 1px solid var(--border); }
 .dl-table th, .dl-table td { text-align: left; padding: 12px 14px; border-bottom: 1px solid var(--border); vertical-align: top; }
@@ -489,6 +556,7 @@ details.listing pre { margin: 0; border: 0; border-top: 1px solid var(--border);
   .intro .container { grid-template-columns: 1fr; }
   .widgets .container { grid-template-columns: repeat(2, 1fr); }
   .perf-grid { grid-template-columns: 1fr; max-width: 640px; }
+  .offer { grid-template-columns: minmax(0, 1fr); }
   .footer .container { grid-template-columns: repeat(2, 1fr); }
   .docs-layout { grid-template-columns: 1fr; gap: 16px; }
   .docs-sidebar {
@@ -516,6 +584,9 @@ details.listing pre { margin: 0; border: 0; border-top: 1px solid var(--border);
   .feature.reverse .feature-text { order: 0; }
   .feature img { max-width: 420px; }
   .cards { grid-template-columns: 1fr; }
+  .offer { padding: 22px 18px; }
+  .offer-steps li { padding-left: 0; }
+  .offer-steps li::before { position: static; display: inline-grid; margin-bottom: 6px; }
   .widgets .container { grid-template-columns: 1fr; }
   .footer .container { grid-template-columns: 1fr 1fr; }
 }
